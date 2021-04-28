@@ -1,10 +1,8 @@
 import execa from "execa";
-import fs from "fs";
+import { stat } from "fs/promises";
 import { replaceWithOneTimeExecutionMethod } from "one-time-execution-method";
 import { Repository } from "repository-provider";
-
 import { refNamesFromString } from "./util.mjs";
-const { stat } = fs.promises;
 
 /**
  * @property {string} workspace
@@ -18,7 +16,7 @@ export class LocalRepository extends Repository {
        * workspace directory.
        * @return {string}
        */
-      workspace: {}
+      workspace: { type: "string" }
     };
   }
 
@@ -46,8 +44,7 @@ export class LocalRepository extends Repository {
       } catch (e) {}
     }
 
-    name = name.replace(/\.git$/, "");
-    return name;
+    return name.replace(/\.git$/, "");
   }
 
   get urls() {
@@ -119,14 +116,26 @@ export class LocalRepository extends Repository {
       }
     } catch (e) {
       if (e.code === "ENOENT") {
-        await this.exec(
-          ["clone", ...this.provider.cloneOptions, this.name, this.workspace],
-          {}
-        );
+        try {
+          await this.exec(
+            ["clone", ...this.provider.cloneOptions, this.name, this.workspace],
+            {}
+          );
+        } catch (cloneException) {
+          if (
+            cloneException.stderr ===
+            `fatal: repository '${this.name}' does not exist`
+          ) {
+            return undefined;
+          }
+          throw cloneException;
+        }
       } else {
         throw e;
       }
     }
+
+    return this;
   }
 
   /**

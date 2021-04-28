@@ -5,6 +5,8 @@ import LocalProvider from "local-repository-provider";
 const REPOSITORY_NAME = "https://github.com/arlac77/sync-test-repository.git";
 const REPOSITORY_NAME_GIT = "git@github.com:arlac77/sync-test-repository.git";
 
+test("provider factory name", t => t.is(LocalProvider.name, "local"));
+
 test("local provider optionsFromEnvironment", t => {
   const options = LocalProvider.optionsFromEnvironment({
     GIT_CLONE_OPTIONS: "--depth 1"
@@ -18,8 +20,9 @@ test("local provider optionsFromEnvironment", t => {
 
 test("local provider", t => {
   const provider = new LocalProvider();
-  t.deepEqual(provider.cloneOptions, ["--depth", "10", "--no-single-branch"]);
+  t.deepEqual(provider.cloneOptions, ["--depth", "8", "--no-single-branch"]);
   t.truthy(provider.workspace.length > 2);
+  t.is(provider.priority, 0);
 });
 
 test("local provider workspacePaths", async t => {
@@ -82,7 +85,7 @@ test.serial("local provider create & delete branch", async t => {
   t.is(await repository.branch(newName), undefined);
 });
 
-test.serial("local get file", async t => {
+test("local get file", async t => {
   const provider = new LocalProvider({ workspace: tmpdir() });
   const repository = await provider.repository(REPOSITORY_NAME);
   const branch = await repository.defaultBranch;
@@ -112,7 +115,7 @@ test.serial("local provider list files", async t => {
   t.true(file2.isBlob);
 });
 
-test.serial("local provider list files with pattern", async t => {
+test("local provider list files with pattern", async t => {
   const provider = new LocalProvider({ workspace: tmpdir() });
   const repository = await provider.repository(REPOSITORY_NAME);
   const branch = await repository.defaultBranch;
@@ -129,7 +132,7 @@ test.serial("local provider list files with pattern", async t => {
   t.true(file.isBlob);
 });
 
-test.serial("local provider get none exiting file", async t => {
+test.serial("local provider get none existing file", async t => {
   const provider = new LocalProvider({ workspace: tmpdir() });
 
   if (process.env.SSH_AUTH_SOCK) {

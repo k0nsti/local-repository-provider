@@ -13,20 +13,22 @@ const repoFixtures = {
   "": undefined,
   "  x  ": undefined,
 
-  // "git@mfelten.de/github-repository-provider.git": undefined,
-  //"http://www.heise.de/index.html": undefined,
-
-  "https://github.com/arlac77/sync-test-repository.git": {
-    condensedName: "sync-test-repository",
-    provider: LocalProvider
-  },
+  // export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+  /*
+  "git@mfelten.de/github-repository-provider.git": undefined,
   "git@github.com:arlac77/sync-test-repository.git": {
     condensedName: "sync-test-repository",
     provider: LocalProvider
   },
-
-  "https://mfelten.dynv6.net/services/git/markus/de.mfelten.archlinux.git": {
+    "https://mfelten.dynv6.net/services/git/markus/de.mfelten.archlinux.git": {
     condensedName: "de.mfelten.archlinux",
+    provider: LocalProvider
+  },
+
+*/
+  "http://www.heise.de/index.html": undefined,
+  "https://github.com/arlac77/sync-test-repository.git": {
+    condensedName: "sync-test-repository",
     provider: LocalProvider
   }
 };
@@ -34,11 +36,19 @@ const repoFixtures = {
 test("locate repository several", async t => {
   const provider = new LocalProvider();
 
-  t.plan(71);
+  t.plan(7);
 
   for (const [url, repoFixture] of Object.entries(repoFixtures)) {
     await assertRepo(t, await provider.repository(url), repoFixture, url);
   }
+});
+
+test("locate invalid repository", async t => {
+  const provider = new LocalProvider();
+  t.is(
+    await provider.repository("git@mfelten.de/github-repository-provider.git"),
+    undefined
+  );
 });
 
 test("local provider reuse workspace", async t => {

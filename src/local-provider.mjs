@@ -1,31 +1,43 @@
 import { join } from "path";
 import { tmpdir } from "os";
+import { mkdir } from "fs/promises";
+import execa from "execa";
 import { SingleGroupProvider, asArray } from "repository-provider";
 import { LocalRepository } from "./local-repository.mjs";
 import { LocalBranch } from "./local-branch.mjs";
 
 /**
- * Provider using native git executable
- * Known environment variables
+ * Provider using native git executable.
+ * Known environment variables.
  * - GIT_CLONE_OPTIONS
  * @property {string} workspace
  */
 export class LocalProvider extends SingleGroupProvider {
   /**
-   * Default configuration options
+   * We are called local.
+   * @return {string} local
+   */
+  static get name() {
+    return "local";
+  }
+
+  /**
+   * Default configuration options.
    * - workspace
-   * - cloneOptions defaults to ["--depth", "10", "--no-single-branch"]
+   * - cloneOptions defaults to ["--depth", "8", "--no-single-branch"]
    * @return {Object}
    */
   static get attributes() {
     return {
+      ...super.attributes,
       cloneOptions: {
         env: "GIT_CLONE_OPTIONS",
-        set: value => typeof value != "object" ? value.split(/\s+/) : value,
-        default: ["--depth", "10", "--no-single-branch"]
+        set: value => (typeof value != "object" ? value.split(/\s+/) : value),
+        default: ["--depth", "8", "--no-single-branch"]
       },
       workspace: {
-        default: tmpdir()
+        default: tmpdir(),
+        type: "string"
       }
     };
   }
@@ -39,7 +51,7 @@ export class LocalProvider extends SingleGroupProvider {
   }
 
   /**
-   * Generate path for a new workspace
+   * Generate path for a new workspace.
    * For the livetime of the provider always genrate new names
    * @return {string} path
    */
@@ -48,32 +60,47 @@ export class LocalProvider extends SingleGroupProvider {
   }
 
   normalizeRepositoryName(name) {
-    name = name.trim();
-    return name;
+    return name.trim();
   }
 
-  async *repositoryGroups(name) {
-    console.log("X repositoryGroups", name);
-    if (name !== undefined) {
-      if (name.match("^(git|http)")) {
-        yield this;
+  /**
+   * List branches for a given set of patterns.
+   * Only delivers branches for valid complete git urls.
+   * @param {string|string[]} patterns
+   */
+  async *branches(patterns) {
+    for (const pattern of asArray(patterns)) {
+      const branch = await this.branch(pattern);
+      if (branch) {
+        yield branch;
       }
     }
   }
 
-  async *branches(pattern) {
-    for (const name of asArray(pattern)) {
-      console.log("X branches", name);
-      if (name !== undefined) {
-        if (name.match("^(git|http)")) {
-          yield this.branch(name);
-        }
+  async createRepository(name, options) {
+    const workspace = this.newWorkspacePath();
+    await mkdir(workspace, { recursive: true });
+    const repo = await super.createRepository(name, { workspace });
+    await execa("git", ["init"], { cwd: workspace });
+    return repo;
+  }
+
+  /**
+   * List repositories for a given set of patterns.
+   * Only delivers repositories for valid complete git urls.
+   * @param {string|string[]} patterns
+   */
+  async *repositories(patterns) {
+    for (const pattern of asArray(patterns)) {
+      const repository = await this.repository(pattern);
+      if (repository) {
+        yield repository;
       }
     }
   }
 
   /**
-   * using provider workspace and number of repositories to create repository workspace
+   * Using provider workspace and number of repositories to create repository workspace.
    * @param {string} name
    * @param {string} workspace where to place the repos workspace @see #newWorkspacePath
    */
@@ -86,8 +113,6 @@ export class LocalProvider extends SingleGroupProvider {
       return undefined;
     }
 
-    //console.log("REPOSITORY", name);
-
     let repository = this._repositories.get(name);
     if (repository === undefined) {
       try {
@@ -95,10 +120,14 @@ export class LocalProvider extends SingleGroupProvider {
           workspace: workspace ? workspace : this.newWorkspacePath()
         });
 
-        await repository.initialize();
-
-        this._repositories.set(repository.name, repository);
-      } catch {}
+        if (await repository.initialize()) {
+          this._repositories.set(repository.name, repository);
+        } else {
+          return undefined;
+        }
+      } catch {
+        return undefined;
+      }
     }
 
     return repository;
@@ -110,8 +139,6 @@ export class LocalProvider extends SingleGroupProvider {
     }
 
     const repository = await this.repository(name);
-
-    console.log("BRANCH REPOSITORY", repository);
 
     if (repository === undefined) {
       return undefined;
